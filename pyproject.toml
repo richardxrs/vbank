@@ -1,0 +1,16 @@
+[project]
+name = "vbank"
+version = "0.1.0"
+description = "SAT vocabulary bank - save unknown words with definitions, synonyms, and Chinese translations"
+readme = "README.md"
+license = {text = "MIT"}
+authors = []
+requires-python = ">=3.10"
+dependencies = ["textual>=8.0.0"]
+
+[project.scripts]
+vbank = "vbank:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
