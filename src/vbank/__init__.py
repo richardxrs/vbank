@@ -497,20 +497,14 @@ if TUI_AVAILABLE:
                 self.queue.append(w)
                 self.show_current()
             elif event.button.id == "quit":
-                self.app.push_screen(WrongWordsScreen(self.known, self.total, self.wrong))
-                self.dismiss(None)
+                self.dismiss({"known": self.known, "total": self.total, "wrong": self.wrong})
 
         def on_key(self, event):
             if event.key == "space":
                 self.reveal()
 
         def show_result(self):
-            self.app.push_screen(WrongWordsScreen(self.known, self.total, self.wrong))
-            self.query_one("#word_display", Static).update("")
-            self.query_one("#answer_display", Static).update("")
-            self.query_one("#progress", Static).update("")
-            self.query_one("#know", Button).disabled = True
-            self.query_one("#dont_know", Button).disabled = True
+            self.dismiss({"known": self.known, "total": self.total, "wrong": self.wrong})
 
     class StatsScreen(ModalScreen):
         BINDINGS = [Binding("escape", "close", "Close")]
@@ -667,7 +661,10 @@ if TUI_AVAILABLE:
             words = load_words()
             if not words:
                 return
-            self.app.push_screen(FlashcardsScreen(words))
+            def on_flashcards_done(result):
+                if result:
+                    self.app.push_screen(WrongWordsScreen(result["known"], result["total"], result["wrong"]))
+            self.app.push_screen(FlashcardsScreen(words), on_flashcards_done)
 
         def action_show_stats(self):
             self.app.push_screen(StatsScreen())
