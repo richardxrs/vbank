@@ -601,7 +601,7 @@ if TUI_AVAILABLE:
 
         def compose(self):
             yield Header()
-            yield Static("", id="filter_bar")
+            yield Static("", id="filter_bar", display=False)
             yield DataTable(id="word_table")
             yield Footer()
 
@@ -611,11 +611,14 @@ if TUI_AVAILABLE:
             table.columns.clear()
             table.add_columns("#", "Word", "Type", "Chinese", "Definition", "Synonyms", "Added")
             words = load_words()
+            fb = self.query_one("#filter_bar", Static)
             if self.search_filter:
                 words = [w for w in words if self.search_filter.lower() in w["phrase"].lower() or self.search_filter.lower() in w.get("chinese", "").lower()]
-                self.query_one("#filter_bar", Static).update(f"[yellow]🔍 filtered: '{self.search_filter}' ({len(words)} matches) — press f again to clear[/]")
+                fb.update(f"[yellow]🔍 filtered: '{self.search_filter}' ({len(words)} matches) — press f again to clear[/]")
+                fb.display = True
             else:
-                self.query_one("#filter_bar", Static).update("")
+                fb.update("")
+                fb.display = False
             for i, w in enumerate(words, 1):
                 def_text = w["definitions"][0][:50] + "..." if w.get("definitions") and len(w["definitions"][0]) > 50 else (w["definitions"][0] if w.get("definitions") else "")
                 syn_text = ", ".join(w["synonyms"][:3])[:40] if w.get("synonyms") else ""
