@@ -601,7 +601,7 @@ if TUI_AVAILABLE:
 
         def compose(self):
             yield Header()
-            yield Static("", id="filter_bar", display=False)
+            yield Static("", id="filter_bar")
             yield DataTable(id="word_table")
             yield Footer()
 
@@ -726,6 +726,7 @@ if TUI_AVAILABLE:
             self.digit_buffer = ""
             self.digit_timer = None
             self.search_filter = ""
+            self.query_one("#filter_bar", Static).display = False
             self.refresh_table()
 
         def on_key(self, event):
