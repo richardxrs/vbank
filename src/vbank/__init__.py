@@ -269,6 +269,7 @@ try:
     from textual.containers import Horizontal, Vertical, ScrollableContainer
     from textual import work
     from textual.reactive import reactive
+    from rich.text import Text
     TUI_AVAILABLE = True
 except ImportError:
     TUI_AVAILABLE = False
@@ -432,6 +433,7 @@ if TUI_AVAILABLE:
             self.queue = list(words)
             self.total = len(words)
             self.known = 0
+            self.answered = 0
             self.revealed = False
             self.wrong = []
 
@@ -460,7 +462,7 @@ if TUI_AVAILABLE:
             )
             self.query_one("#answer_display", Static).update("")
             self.query_one("#progress", Static).update(
-                f"Remaining: {len(self.queue)} | Known: {self.known}"
+                f"Remaining: {len(self.queue)} | Known: {self.known} | Answered: {self.answered}"
             )
             self.query_one("#know", Button).disabled = True
             self.query_one("#dont_know", Button).disabled = True
@@ -489,22 +491,24 @@ if TUI_AVAILABLE:
                 return
             if event.button.id == "know":
                 self.known += 1
+                self.answered += 1
                 self.queue.pop(0)
                 self.show_current()
             elif event.button.id == "dont_know":
+                self.answered += 1
                 w = self.queue.pop(0)
                 self.wrong.append(w)
                 self.queue.append(w)
                 self.show_current()
             elif event.button.id == "quit":
-                self.dismiss({"known": self.known, "total": self.total, "wrong": self.wrong})
+                self.dismiss({"known": self.known, "total": self.answered, "wrong": self.wrong})
 
         def on_key(self, event):
             if event.key == "space":
                 self.reveal()
 
         def show_result(self):
-            self.dismiss({"known": self.known, "total": self.total, "wrong": self.wrong})
+            self.dismiss({"known": self.known, "total": self.answered, "wrong": self.wrong})
 
     class StatsScreen(ModalScreen):
         BINDINGS = [Binding("escape", "close", "Close")]
@@ -593,18 +597,16 @@ if TUI_AVAILABLE:
                 def_text = w["definitions"][0][:50] + "..." if w.get("definitions") and len(w["definitions"][0]) > 50 else (w["definitions"][0] if w.get("definitions") else "")
                 syn_text = ", ".join(w["synonyms"][:3])[:40] if w.get("synonyms") else ""
                 typ_text = ", ".join(w.get("types", []))
-                row_key = table.add_row(
-                    str(i),
-                    w["phrase"],
-                    typ_text,
-                    w.get("chinese", "")[:25],
-                    def_text,
-                    syn_text,
-                    w["added"][:10],
-                )
-                color = w.get("color", "")
-                if color:
-                    table.update_cell(row_key, "Word", w["phrase"], style=color)
+                word_cell = Text(w["phrase"], style=w.get("color", "")) if w.get("color") else w["phrase"]
+                table.add_row(
+                        str(i),
+                        word_cell,
+                        typ_text,
+                        w.get("chinese", "")[:25],
+                        def_text,
+                        syn_text,
+                        w["added"][:10],
+                    )
 
         def action_add_word(self):
             def on_add(result):
