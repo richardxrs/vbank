@@ -399,6 +399,22 @@ if TUI_AVAILABLE:
                 return
             self.app.call_from_thread(self.dismiss, entry)
 
+    class SearchScreen(ModalScreen):
+        BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+        def compose(self):
+            yield Static("[bold]Search words[/]\n")
+            yield Input(placeholder="Type to search (Enter to confirm)...", id="search_input")
+
+        def on_mount(self):
+            self.query_one("#search_input", Input).focus()
+
+        def on_input_submitted(self, event):
+            self.dismiss(event.value.strip())
+
+        def action_cancel(self):
+            self.dismiss(None)
+
     class WrongWordsScreen(ModalScreen):
         BINDINGS = [Binding("escape", "close", "Close")]
 
@@ -573,6 +589,7 @@ if TUI_AVAILABLE:
             Binding("c", "color_word", "Color"),
             Binding("d", "delete_word", "Delete"),
             Binding("e", "edit_word", "Edit"),
+            Binding("f", "search", "Search"),
             Binding("r", "flashcards", "Flashcards"),
             Binding("s", "show_stats", "Stats"),
             Binding("q", "quit", "Quit"),
@@ -584,6 +601,7 @@ if TUI_AVAILABLE:
 
         def compose(self):
             yield Header()
+            yield Static("", id="filter_bar")
             yield DataTable(id="word_table")
             yield Footer()
 
@@ -593,6 +611,11 @@ if TUI_AVAILABLE:
             table.columns.clear()
             table.add_columns("#", "Word", "Type", "Chinese", "Definition", "Synonyms", "Added")
             words = load_words()
+            if self.search_filter:
+                words = [w for w in words if self.search_filter.lower() in w["phrase"].lower() or self.search_filter.lower() in w.get("chinese", "").lower()]
+                self.query_one("#filter_bar", Static).update(f"[yellow]🔍 filtered: '{self.search_filter}' ({len(words)} matches) — press f again to clear[/]")
+            else:
+                self.query_one("#filter_bar", Static).update("")
             for i, w in enumerate(words, 1):
                 def_text = w["definitions"][0][:50] + "..." if w.get("definitions") and len(w["definitions"][0]) > 50 else (w["definitions"][0] if w.get("definitions") else "")
                 syn_text = ", ".join(w["synonyms"][:3])[:40] if w.get("synonyms") else ""
@@ -671,6 +694,18 @@ if TUI_AVAILABLE:
         def action_show_stats(self):
             self.app.push_screen(StatsScreen())
 
+        def action_search(self):
+            if self.search_filter:
+                self.search_filter = ""
+                self.refresh_table()
+                return
+            def on_search(term):
+                if term is None:
+                    return
+                self.search_filter = term
+                self.refresh_table()
+            self.app.push_screen(SearchScreen(), on_search)
+
         def action_show_detail(self):
             table = self.query_one("#word_table", DataTable)
             row_index = table.cursor_row
@@ -687,6 +722,7 @@ if TUI_AVAILABLE:
         def on_mount(self):
             self.digit_buffer = ""
             self.digit_timer = None
+            self.search_filter = ""
             self.refresh_table()
 
         def on_key(self, event):
