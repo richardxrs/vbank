@@ -642,8 +642,10 @@ if TUI_AVAILABLE:
 
         def action_delete_word(self):
             table = self.query_one("#word_table", DataTable)
+            if table.row_count == 0:
+                return
             row_index = table.cursor_row
-            if row_index is None:
+            if row_index is None or not table.is_valid_row_index(row_index):
                 return
             rows = table.get_row_at(row_index)
             phrase = str(rows[1])
@@ -652,8 +654,10 @@ if TUI_AVAILABLE:
 
         def action_edit_word(self):
             table = self.query_one("#word_table", DataTable)
+            if table.row_count == 0:
+                return
             row_index = table.cursor_row
-            if row_index is None:
+            if row_index is None or not table.is_valid_row_index(row_index):
                 return
             rows = table.get_row_at(row_index)
             phrase = str(rows[1])
@@ -668,8 +672,10 @@ if TUI_AVAILABLE:
 
         def action_color_word(self):
             table = self.query_one("#word_table", DataTable)
+            if table.row_count == 0:
+                return
             row_index = table.cursor_row
-            if row_index is None:
+            if row_index is None or not table.is_valid_row_index(row_index):
                 return
             rows = table.get_row_at(row_index)
             phrase = str(rows[1])
@@ -711,8 +717,10 @@ if TUI_AVAILABLE:
 
         def action_show_detail(self):
             table = self.query_one("#word_table", DataTable)
+            if table.row_count == 0:
+                return
             row_index = table.cursor_row
-            if row_index is None:
+            if row_index is None or not table.is_valid_row_index(row_index):
                 return
             rows = table.get_row_at(row_index)
             phrase = str(rows[1])
@@ -737,9 +745,11 @@ if TUI_AVAILABLE:
                 from textual.timer import Timer
                 self.digit_timer = self.set_timer(1.0, self.clear_digit_buffer)
                 table = self.query_one("#word_table", DataTable)
+                if table.row_count == 0:
+                    return
                 target = int(self.digit_buffer) - 1
                 rows = load_words()
-                if 0 <= target < len(rows):
+                if 0 <= target < len(rows) and table.is_valid_row_index(target):
                     table.move_cursor(row=target)
                 event.stop()
             else:
