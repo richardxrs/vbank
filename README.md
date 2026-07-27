@@ -100,7 +100,9 @@ vbank stats            Show statistics
 | `c` | Color-pick the selected word (8 colors) |
 | `d` | Delete selected |
 | `e` | Edit selected word |
-| `r` | Flashcards (all words, unknown cycle until known) |
+| `f` | Search words by phrase or Chinese |
+| `l` | Switch / create named word lists |
+| `r` | Flashcards (all words in current list, unknown cycle until known) |
 | `s` | Stats |
 | `Space` / `Enter` | Expand/collapse word details |
 | `Esc` | Close modals / Cancel |
