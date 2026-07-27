@@ -11,6 +11,7 @@ from datetime import datetime
 DATA_DIR = os.path.expanduser("~/.local/share/vbank")
 DATA_FILE = os.path.join(DATA_DIR, "words.json")
 CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
+LISTS_FILE = os.path.join(DATA_DIR, "lists.json")
 
 
 # ── Data layer ──────────────────────────────────────────────────────────
@@ -36,6 +37,17 @@ def save_words(words):
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(DATA_FILE, "w") as f:
         json.dump(words, f, indent=2, ensure_ascii=False)
+
+def load_lists():
+    if os.path.exists(LISTS_FILE) and os.path.getsize(LISTS_FILE) > 0:
+        with open(LISTS_FILE) as f:
+            return json.load(f)
+    return []
+
+def save_lists(lists):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(LISTS_FILE, "w") as f:
+        json.dump(lists, f, indent=2)
 
 def fetch_definition(word):
     q = urllib.parse.quote(word)
@@ -97,11 +109,13 @@ def fetch_chinese(word):
     except Exception:
         return None
 
-def add_word(phrase, silent=False):
+def add_word(phrase, silent=False, list_name=None):
     words = load_words()
     if any(w["phrase"].lower() == phrase.lower() for w in words):
         return None, "already exists"
     entry = {"phrase": phrase, "added": datetime.now().isoformat()}
+    if list_name:
+        entry["list"] = list_name
     info = fetch_definition(phrase)
     if info:
         entry["definitions"] = info["definitions"]
@@ -371,6 +385,10 @@ if TUI_AVAILABLE:
     class AddWordScreen(ModalScreen):
         BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
+        def __init__(self, list_name=None):
+            super().__init__()
+            self.list_name = list_name
+
         def compose(self):
             yield Static("[bold]Add a word[/]\n")
             yield Input(placeholder="Enter a word or phrase...", id="word_input")
@@ -393,11 +411,83 @@ if TUI_AVAILABLE:
 
         @work(thread=True)
         async def fetch_and_add(self, phrase):
-            entry, err = add_word(phrase)
+            entry, err = add_word(phrase, list_name=self.list_name)
             if err:
                 self.app.call_from_thread(self.query_one("#status", Static).update, f"[red]{phrase}[/] already exists.")
                 return
             self.app.call_from_thread(self.dismiss, entry)
+
+    class ListSelectScreen(ModalScreen):
+        BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+        def __init__(self, current_list=None):
+            super().__init__()
+            self.current_list = current_list
+
+        def compose(self):
+            yield Static("[bold]Select a list[/]\n")
+            lists = load_lists()
+            for name in lists:
+                label = f"   {name}" if name == self.current_list else f"   {name}"
+                yield Button(label, id=f"list_{name}", variant="default")
+            yield Static("")
+            yield Button("   + New List", id="new_list", variant="primary")
+            yield Static("")
+
+        def on_button_pressed(self, event):
+            if event.button.id == "new_list":
+                def on_name(name):
+                    self.app.call_from_thread(self._create_list, name)
+                self.app.push_screen(ListCreateScreen(), on_name)
+                return
+            name = event.button.id[5:]  # strip "list_" prefix
+            self.dismiss(name)
+
+        def _create_list(self, name):
+            if not name:
+                return
+            name = name.strip()
+            if name in load_lists():
+                return
+            lists = load_lists()
+            lists.append(name)
+            save_lists(lists)
+            self.dismiss(name)
+
+        def action_cancel(self):
+            self.dismiss(None)
+
+    class ListCreateScreen(ModalScreen):
+        BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+        def compose(self):
+            yield Static("[bold]Create new list[/]\n")
+            yield Input(placeholder="List name...", id="name_input")
+
+        def on_mount(self):
+            self.query_one("#name_input", Input).focus()
+
+        def on_input_submitted(self, event):
+            name = event.value.strip()
+            if name:
+                self.dismiss(name)
+
+        def action_cancel(self):
+            self.dismiss(None)
+        BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+        def compose(self):
+            yield Static("[bold]Search words[/]\n")
+            yield Input(placeholder="Type to search (Enter to confirm)...", id="search_input")
+
+        def on_mount(self):
+            self.query_one("#search_input", Input).focus()
+
+        def on_input_submitted(self, event):
+            self.dismiss(event.value.strip())
+
+        def action_cancel(self):
+            self.dismiss(None)
 
     class SearchScreen(ModalScreen):
         BINDINGS = [Binding("escape", "cancel", "Cancel")]
@@ -590,6 +680,7 @@ if TUI_AVAILABLE:
             Binding("d", "delete_word", "Delete"),
             Binding("e", "edit_word", "Edit"),
             Binding("f", "search", "Search"),
+            Binding("l", "lists", "Lists"),
             Binding("r", "flashcards", "Flashcards"),
             Binding("s", "show_stats", "Stats"),
             Binding("q", "quit", "Quit"),
@@ -611,10 +702,18 @@ if TUI_AVAILABLE:
             table.columns.clear()
             table.add_columns("#", "Word", "Type", "Chinese", "Definition", "Synonyms", "Added")
             words = load_words()
-            fb = self.query_one("#filter_bar", Static)
+            if self.current_list:
+                words = [w for w in words if w.get("list") == self.current_list]
             if self.search_filter:
                 words = [w for w in words if self.search_filter.lower() in w["phrase"].lower() or self.search_filter.lower() in w.get("chinese", "").lower()]
-                fb.update(f"[yellow]🔍 filtered: '{self.search_filter}' ({len(words)} matches) — press f again to clear[/]")
+            fb = self.query_one("#filter_bar", Static)
+            parts = []
+            if self.current_list:
+                parts.append(f"[bold]List: {self.current_list}[/]")
+            if self.search_filter:
+                parts.append(f"[yellow]🔍 '{self.search_filter}' ({len(words)} match) — f to clear[/]")
+            if parts:
+                fb.update("  ".join(parts))
                 fb.display = True
             else:
                 fb.update("")
@@ -638,7 +737,7 @@ if TUI_AVAILABLE:
             def on_add(result):
                 if result:
                     self.refresh_table()
-            self.app.push_screen(AddWordScreen(), on_add)
+            self.app.push_screen(AddWordScreen(self.current_list), on_add)
 
         def action_delete_word(self):
             table = self.query_one("#word_table", DataTable)
@@ -693,6 +792,8 @@ if TUI_AVAILABLE:
 
         def action_flashcards(self):
             words = load_words()
+            if self.current_list:
+                words = [w for w in words if w.get("list") == self.current_list]
             if not words:
                 return
             def on_flashcards_done(result):
@@ -715,6 +816,18 @@ if TUI_AVAILABLE:
                 self.refresh_table()
             self.app.push_screen(SearchScreen(), on_search)
 
+        def action_lists(self):
+            def on_list(name):
+                if name is not None:
+                    if self.search_filter:
+                        self.search_filter = ""
+                    self.current_list = name
+                    cfg = load_config()
+                    cfg["current_list"] = name
+                    save_config(cfg)
+                    self.refresh_table()
+            self.app.push_screen(ListSelectScreen(self.current_list), on_list)
+
         def action_show_detail(self):
             table = self.query_one("#word_table", DataTable)
             if table.row_count == 0:
@@ -734,6 +847,8 @@ if TUI_AVAILABLE:
             self.digit_buffer = ""
             self.digit_timer = None
             self.search_filter = ""
+            cfg = load_config()
+            self.current_list = cfg.get("current_list")
             self.query_one("#filter_bar", Static).display = False
             self.refresh_table()
 
