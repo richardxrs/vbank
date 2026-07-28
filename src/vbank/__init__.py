@@ -437,21 +437,17 @@ if TUI_AVAILABLE:
         def on_button_pressed(self, event):
             if event.button.id == "new_list":
                 def on_name(name):
-                    self.app.call_from_thread(self._create_list, name)
+                    if not name or not name.strip():
+                        return
+                    name = name.strip()
+                    if name not in load_lists():
+                        lists = load_lists()
+                        lists.append(name)
+                        save_lists(lists)
+                    self.dismiss(name)
                 self.app.push_screen(ListCreateScreen(), on_name)
                 return
-            name = event.button.id[5:]  # strip "list_" prefix
-            self.dismiss(name)
-
-        def _create_list(self, name):
-            if not name:
-                return
-            name = name.strip()
-            if name in load_lists():
-                return
-            lists = load_lists()
-            lists.append(name)
-            save_lists(lists)
+            name = event.button.id[5:]
             self.dismiss(name)
 
         def action_cancel(self):
@@ -474,20 +470,6 @@ if TUI_AVAILABLE:
 
         def action_cancel(self):
             self.dismiss(None)
-        BINDINGS = [Binding("escape", "cancel", "Cancel")]
-
-        def compose(self):
-            yield Static("[bold]Search words[/]\n")
-            yield Input(placeholder="Type to search (Enter to confirm)...", id="search_input")
-
-        def on_mount(self):
-            self.query_one("#search_input", Input).focus()
-
-        def on_input_submitted(self, event):
-            self.dismiss(event.value.strip())
-
-        def action_cancel(self):
-            self.dismiss(None)
 
     class SearchScreen(ModalScreen):
         BINDINGS = [Binding("escape", "cancel", "Cancel")]
@@ -504,6 +486,33 @@ if TUI_AVAILABLE:
 
         def action_cancel(self):
             self.dismiss(None)
+
+    class ListPickerScreen(ModalScreen):
+        BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+        def __init__(self, current_list=None):
+            super().__init__()
+            self.current_list = current_list
+
+        def compose(self):
+            yield Static("[bold]Move word to list[/]\n")
+            yield Button("  (unassigned)", id="move_", variant="default")
+            for name in load_lists():
+                label = f"> {name}" if name == self.current_list else f"  {name}"
+                yield Button(label, id=f"move_{name}", variant="default")
+            yield Static("")
+            yield Button("  Cancel", variant="default", id="cancel")
+
+        def on_button_pressed(self, event):
+            if event.button.id == "cancel":
+                self.dismiss(False)
+            elif event.button.id == "move_":
+                self.dismiss(None)
+            else:
+                self.dismiss(event.button.id[5:])
+
+        def action_cancel(self):
+            self.dismiss(False)
 
     class WrongWordsScreen(ModalScreen):
         BINDINGS = [Binding("escape", "close", "Close")]
@@ -681,6 +690,7 @@ if TUI_AVAILABLE:
             Binding("e", "edit_word", "Edit"),
             Binding("f", "search", "Search"),
             Binding("l", "lists", "Lists"),
+            Binding("m", "move_to_list", "Move"),
             Binding("r", "flashcards", "Flashcards"),
             Binding("s", "show_stats", "Stats"),
             Binding("q", "quit", "Quit"),
@@ -788,6 +798,28 @@ if TUI_AVAILABLE:
                         save_words(words)
                         self.refresh_table()
                     self.app.push_screen(ColorPickerScreen(w.get("color", "")), on_color)
+                    break
+
+        def action_move_to_list(self):
+            table = self.query_one("#word_table", DataTable)
+            if table.row_count == 0:
+                return
+            row_index = table.cursor_row
+            if row_index is None or not table.is_valid_row_index(row_index):
+                return
+            rows = table.get_row_at(row_index)
+            phrase = str(rows[1])
+            words = load_words()
+            for w in words:
+                if w["phrase"].lower() == phrase.lower():
+                    current = w.get("list")
+                    def on_list(name):
+                        if name is False:
+                            return
+                        w["list"] = name
+                        save_words(words)
+                        self.refresh_table()
+                    self.app.push_screen(ListPickerScreen(current), on_list)
                     break
 
         def action_flashcards(self):
