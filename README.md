@@ -102,6 +102,7 @@ vbank stats            Show statistics
 | `e` | Edit selected word |
 | `f` | Search words by phrase or Chinese |
 | `l` | Switch / create named word lists |
+| `m` | Move selected word to a different list |
 | `r` | Flashcards (all words in current list, unknown cycle until known) |
 | `s` | Stats |
 | `Space` / `Enter` | Expand/collapse word details |
